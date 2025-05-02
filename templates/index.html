@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bhasha Chat </title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .recording {
+            background-color: #f44336;
+        }
+        #result-area {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            min-height: 100px;
+        }
+        #audio-controls {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat in your bhasha</h1>
+    
+    <form id="mainForm" action="/submit_form" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="text-input">Text Input:</label>
+            <input type="text" id="text-input" name="text_input" placeholder="Type here">
+        </div>
+        
+        <div class="form-group">
+            <label for="file-upload">File Upload (Optional):</label>
+            <input type="file" id="file-upload" name="file">
+        </div>
+        
+        <div class="form-group">
+            <label>Voice Input:</label>
+            <button type="button" id="record-button">Record Voice</button>
+            <button type="button" id="stop-button" disabled>Stop Recording</button>
+            <input type="hidden" id="voice-recorded" name="voice_recorded" value="false">
+            
+            <div id="audio-controls" style="display: none;">
+                <audio id="audio-player" controls></audio>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <button type="submit" id="submit-button">Submit</button>
+            <button type="button" id="clear-button">Clear All</button>
+           
+        </div>
+    </form>
+    <div id="message-content">{{message or "" }}</div>
+    
+    <div id="result-area">
+        <h3>Results:</h3>
+        <div id="result-content">{{ result or "" }}</div>
+    </div>
+    
+    <script>
+        // DOM Elements
+        const textInput = document.getElementById('text-input');
+        const fileUpload = document.getElementById('file-upload');
+        const recordButton = document.getElementById('record-button');
+        const stopButton = document.getElementById('stop-button');
+        const voiceRecordedInput = document.getElementById('voice-recorded');
+        const audioControls = document.getElementById('audio-controls');
+        const audioPlayer = document.getElementById('audio-player');
+        const submitButton = document.getElementById('submit-button');
+        const clearButton = document.getElementById('clear-button');
+        
+        // Audio recording variables
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let isProcessing = false;
+        
+        // Function to request microphone access and set up recording
+        recordButton.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Set up the MediaRecorder
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    // Create audio blob and URL
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Display audio player
+                    audioPlayer.src = audioUrl;
+                    audioControls.style.display = 'block';
+                    
+                    // Send the audio file to the server
+                    await fetch('/save-audio', {
+                        method: 'POST',
+                        body: audioBlob
+                    });
+                    
+                    // Update form state
+                    voiceRecordedInput.value = 'true';
+                    textInput.disabled = true;
+                    recordButton.disabled = false;
+                    stopButton.disabled = true;
+                    submitButton.disabled = false;
+                    recordButton.classList.remove('recording');
+                    isRecording = false;
+                };
+                
+                // Start recording
+                mediaRecorder.start();
+                isRecording = true;
+                
+                // Update UI
+                recordButton.disabled = true;
+                stopButton.disabled = false;
+                submitButton.disabled = true;
+                recordButton.classList.add('recording');
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                alert('Could not access microphone. Please ensure you have given permission.');
+            }
+        });
+        
+        // Stop recording when stop button is clicked
+        stopButton.addEventListener('click', () => {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                // UI updates will be handled in the onstop event handler
+            }
+        });
+        
+        // Clear all inputs
+        clearButton.addEventListener('click', () => {
+            textInput.value = '';
+            textInput.disabled = false;
+            fileUpload.value = '';
+            voiceRecordedInput.value = 'false';
+            recordButton.disabled = false;
+            audioControls.style.display = 'none';
+            document.getElementById('result-content').textContent = '';
+            document.getElementById('message-content').textContent = '';
+            
+            // If we're recording, stop it
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordButton.classList.remove('recording');
+            }
+            
+            // Reset UI state
+            stopButton.disabled = true;
+            submitButton.disabled = false;
+            recordButton.classList.remove('recording');
+
+            text_input=""
+            voice_recorded = ""
+            file=""
+            message=""
+
+             fetch('/clear-files', {
+                method: 'GET',
+              
+            });
+            text_input=""
+            voice_recorded = ""
+            file=""
+            message=""
+
+        });
+        
+        // Disable voice recording if text is entered
+        textInput.addEventListener('input', function() {
+            if (this.value.trim() !== '') {
+                recordButton.disabled = true;
+            } else {
+                recordButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
