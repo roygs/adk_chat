@@ -32,10 +32,11 @@ import mimetypes
 import io
 import requests
 
-from playsound import playsound
+#from playsound import playsound
 import mimetypes
 import os
 import threading
+import constants
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -46,9 +47,13 @@ USER_ID = "dev_user_01"
 SESSION_ID = "pipeline_session_01"
 GEMINI_MODEL = "gemini-2.5-flash-preview-04-17" 
 INDIAN_LANG_CODES = ['en','hi','bn','gu','kn','ml','mr','od','pa','ta','te']
-TEMP_FOLDER = Path("temp") 
-TEMP_FOLDER.mkdir(exist_ok=True)
-OUTPUT_WAVEFILE = "answer.wav"
+# TEMP_DIR = Path(constants.TEMP_FOLDER) 
+# TEMP_DIR.mkdir(exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+TEMP_DIR = os.path.join(BASE_DIR, "temp")
+
+out_wav_filename = os.path.join(TEMP_DIR, constants.OUTPUT_WAVEFILE)
 
 api_key = os.environ['SARVAM_API_KEY']
 
@@ -153,6 +158,8 @@ def get_translation(text, language):
 
     return translated_text, target_lang_code
 
+def get_audio_answer():
+    return out_wav_filename
 
 def speak(text, lang_code):
     """
@@ -160,7 +167,7 @@ def speak(text, lang_code):
     Returns: wav file path
     """
     import requests
-    out_wav_filename = os.path.join(TEMP_FOLDER, OUTPUT_WAVEFILE)
+ 
 
     #Convert the answer to speech
     #Use SARVAM API
@@ -184,7 +191,7 @@ def speak(text, lang_code):
 
     response = requests.request("POST", url, json=payload, headers=headers)
     response.raise_for_status()
-    #print("Request successful")
+    print("Request successful")
 
     audio_data = response.json()['audios']
     delimiter = ""
@@ -195,8 +202,8 @@ def speak(text, lang_code):
         wav.writeframes(audio_bytes)
 
     #threading.Thread(target=playsound, args=(out_wav_filename,)).start()
-    print("Speaking ..")
-    playsound(out_wav_filename)
+    #print("Speaking ..")
+    #playsound(out_wav_filename)
 
 # Tool function
 def translate_and_speak(a_dict: InfoAnswer, tool_context:ToolContext) :
